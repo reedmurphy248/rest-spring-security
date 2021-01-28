@@ -1,6 +1,7 @@
 package com.security.rest.model;
 
 import javax.persistence.*;
+import java.util.Objects;
 import java.util.Set;
 
 @Entity
@@ -15,8 +16,8 @@ public class Product {
     private String description;
     private double unitPrice;
 
-    @ManyToMany(mappedBy = "products")
-    private Set<Cart> carts;
+    @OneToMany(mappedBy = "product")
+    private Set<CartProductQuantityTable> cartProductQuantityTableSet;
 
     public Product(){}
 
@@ -54,12 +55,20 @@ public class Product {
         this.unitPrice = unitPrice;
     }
 
-    public Set<Cart> getCart() {
-        return carts;
+    public Set<CartProductQuantityTable> getCartProductQuantityTableSet() {
+        return cartProductQuantityTableSet;
     }
 
-    public void setCarts(Set<Cart> carts) {
-        this.carts = carts;
+    public void setCartProductQuantityTableSet(Set<CartProductQuantityTable> cartProductQuantityTableSet) {
+        this.cartProductQuantityTableSet = cartProductQuantityTableSet;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Product product = (Product) o;
+        return id.equals(product.id);
     }
 
 }

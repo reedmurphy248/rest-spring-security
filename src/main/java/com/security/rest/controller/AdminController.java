@@ -1,9 +1,11 @@
 package com.security.rest.controller;
 
 import com.security.rest.exception.ProductDoesntExistException;
+import com.security.rest.model.CartProductQuantityTable;
 import com.security.rest.model.NewProductRequest;
 import com.security.rest.model.Product;
 import com.security.rest.model.ProductResponse;
+import com.security.rest.repository.CartProductQuantityTableRepository;
 import com.security.rest.repository.ProductRepository;
 import com.security.rest.security.JwtRequestFilter;
 import org.slf4j.Logger;
@@ -13,6 +15,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Optional;
+
 @CrossOrigin(origins = {"http://localhost:3000", "https://react-security-product-app.herokuapp.com/"})
 @RestController
 public class AdminController {
@@ -21,6 +26,9 @@ public class AdminController {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private CartProductQuantityTableRepository cartProductQuantityTableRepository;
 
     @GetMapping(value = "/admin")
     public String hello() {
@@ -75,9 +83,23 @@ public class AdminController {
     @PostMapping(value = "/admin/delete-product/{productId}")
     public ResponseEntity<String> deleteProduct(@PathVariable(name = "productId") Long id) {
 
-        productRepository.deleteById(id);
+        Optional<Product> searchedProduct = productRepository.findById(id);
 
-        return new ResponseEntity<>("Product Successfully Deleted", HttpStatus.OK);
+        if (searchedProduct.isPresent()) {
+
+            Product productResult = searchedProduct.get();
+
+            List<CartProductQuantityTable> cartProductQuantityTableList = cartProductQuantityTableRepository.getCartProductQuantityTablesByProduct(productResult);
+
+            cartProductQuantityTableList.forEach(cartProductQuantityTable -> {
+                cartProductQuantityTableRepository.delete(cartProductQuantityTable);
+            });
+
+            productRepository.delete(productResult);
+
+            return ResponseEntity.ok("Product Deleted");
+
+        } else throw new ProductDoesntExistException("Product Doesn't Exist");
 
     }
 

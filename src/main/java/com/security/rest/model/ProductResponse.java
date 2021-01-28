@@ -7,11 +7,21 @@ public class ProductResponse {
     private String description;
     private double unitPrice;
 
+    private double quantity;
+
     public ProductResponse(Long id, String name, String description, double unitPrice) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.unitPrice = unitPrice;
+    }
+
+    public ProductResponse(Long id, String name, String description, double unitPrice, double quantity) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.unitPrice = unitPrice;
+        this.quantity = quantity;
     }
 
     public Long getId() {
@@ -44,5 +54,13 @@ public class ProductResponse {
 
     public void setUnitPrice(double unitPrice) {
         this.unitPrice = unitPrice;
+    }
+
+    public double getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(double quantity) {
+        this.quantity = quantity;
     }
 }

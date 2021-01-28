@@ -1,9 +1,9 @@
 package com.security.rest.model;
 
+import io.swagger.models.auth.In;
+
 import javax.persistence.*;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 public class Cart {
@@ -15,11 +15,8 @@ public class Cart {
     @OneToOne
     private User user;
 
-    // Maybe Cascade type DETACH
-    @ManyToMany(cascade = CascadeType.DETACH)
-    @JoinTable(name = "product_cart", joinColumns = @JoinColumn(name = "cart_id"),
-    inverseJoinColumns = @JoinColumn(name = "product_id"))
-    private Set<Product> products = new HashSet<>();
+    @OneToMany(mappedBy = "cart")
+    private Set<CartProductQuantityTable> cartProductQuantityTableSet = new HashSet<>();
 
     public Cart() {}
 
@@ -27,9 +24,8 @@ public class Cart {
         this.user = user;
     }
 
-    public Cart(User user, Set<Product> products) {
-        this.user = user;
-        this.products = products;
+    public Long getId() {
+        return id;
     }
 
     public User getUser() {
@@ -40,12 +36,20 @@ public class Cart {
         this.user = user;
     }
 
-    public Set<Product> getProducts() {
-        return products;
+    public Set<CartProductQuantityTable> getCartProductQuantityTableSet() {
+        return cartProductQuantityTableSet;
     }
 
-    public void setProducts(Set<Product> products) {
-        this.products = products;
+    public void setCartProductQuantityTableSet(Set<CartProductQuantityTable> cartProductQuantityTableSet) {
+        this.cartProductQuantityTableSet = cartProductQuantityTableSet;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Cart cart = (Cart) o;
+        return id == cart.id;
     }
 
 }

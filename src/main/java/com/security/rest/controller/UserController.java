@@ -2,10 +2,8 @@ package com.security.rest.controller;
 
 import com.security.rest.exception.NoValidCartException;
 import com.security.rest.exception.ProductDoesntExistException;
-import com.security.rest.model.Cart;
-import com.security.rest.model.Product;
-import com.security.rest.model.ProductResponse;
-import com.security.rest.model.User;
+import com.security.rest.model.*;
+import com.security.rest.repository.CartProductQuantityTableRepository;
 import com.security.rest.repository.CartRepository;
 import com.security.rest.repository.ProductRepository;
 import com.security.rest.repository.UserRepository;
@@ -36,6 +34,9 @@ public class UserController {
 
     @Autowired
     private CartRepository cartRepository;
+
+    @Autowired
+    private CartProductQuantityTableRepository cartProductQuantityTableRepository;
 
     @Autowired
     private JwtUtilService jwtUtilService;
@@ -80,24 +81,43 @@ public class UserController {
 
             Cart userCart = loggedInUser.getCart();
 
-            userCart.getProducts().add(searchedProduct);
+            Set<CartProductQuantityTable> cartProductQuantityTableSet = userCart.getCartProductQuantityTableSet();
+
+            Optional<CartProductQuantityTable> userCartTable = cartProductQuantityTableSet.stream()
+            .filter(cartProductQuantityTable -> cartProductQuantityTable.getCart().equals(userCart)
+                    && cartProductQuantityTable.getProduct().equals(searchedProduct))
+            .findFirst();
+
+            if (userCartTable.isPresent()) {
+
+                CartProductQuantityTable resultTable = userCartTable.get();
+
+                cartProductQuantityTableSet = cartProductQuantityTableSet.stream()
+                        .filter(cartProductQuantityTable -> !cartProductQuantityTable.equals(resultTable))
+                        .collect(Collectors.toSet());
+
+                double prevQuantity = resultTable.getQuantity();
+
+                resultTable.setQuantity(prevQuantity + 1);
+
+                cartProductQuantityTableSet.add(resultTable);
+
+            } else {
+
+                CartProductQuantityTable savedTable = cartProductQuantityTableRepository.save(new CartProductQuantityTable(userCart,
+                        searchedProduct, 1));
+
+                cartProductQuantityTableSet.add(savedTable);
+
+            }
+
+            userCart.setCartProductQuantityTableSet(cartProductQuantityTableSet);
 
             cartRepository.save(userCart);
 
-            // Don't add, creates circular saved reference to User and Product
-//            searchedProduct.getUsers().add(loggedInUser);
+            return ResponseEntity.ok("Product Added");
 
-//            productRepository.save(searchedProduct);
-
-            userRepository.save(loggedInUser);
-
-            return new ResponseEntity<>("Product Added to Cart", HttpStatus.OK);
-
-        } else {
-
-            throw new ProductDoesntExistException("Product Does Not Exist");
-
-        }
+        } else throw new ProductDoesntExistException("Product Doesn't Exist");
 
     }
 
@@ -109,15 +129,19 @@ public class UserController {
         Cart userCart = loggedInUser.getCart();
 
         if(userCart != null) {
-            Set<Product> products = userCart.getProducts();
 
-            List<ProductResponse> productResponseList = new ArrayList<>();
+            List<CartProductQuantityTable> cartProductQuantityTableList = cartProductQuantityTableRepository.getCartProductQuantityTablesByCart(userCart);
 
-            products.forEach(product -> {
-                productResponseList.add(new ProductResponse(product.getId(), product.getName(), product.getDescription(), product.getUnitPrice()));
+            List<ProductResponse> responseList = new ArrayList<>();
+
+            cartProductQuantityTableList.forEach(cartProductQuantityTable -> {
+                Product product = cartProductQuantityTable.getProduct();
+                ProductResponse productResponse = new ProductResponse(product.getId(), product.getName(),
+                        product.getDescription(), product.getUnitPrice(), cartProductQuantityTable.getQuantity());
+                responseList.add(productResponse);
             });
 
-            return ResponseEntity.ok(productResponseList);
+            return ResponseEntity.ok(responseList);
 
         } else {
 
@@ -134,36 +158,76 @@ public class UserController {
 
         Cart userCart = loggedInUser.getCart();
 
-        Set<Product> newProductList = userCart.getProducts().stream()
-                .filter(product -> !product.getId().equals(id))
-                .collect(Collectors.toSet());
+        Optional<Product> searchedProduct = productRepository.findById(id);
 
-        userCart.setProducts(newProductList);
-        cartRepository.save(userCart);
+        Set<CartProductQuantityTable> userCartTableSet = userCart.getCartProductQuantityTableSet();
 
-        List<ProductResponse> productResponseList = newProductList.stream()
-                .map(product -> new ProductResponse(product.getId(), product.getName(), product.getDescription(), product.getUnitPrice()))
-                .collect(Collectors.toList());
+        if (searchedProduct.isPresent()) {
 
-        return ResponseEntity.ok(productResponseList);
+            Set<CartProductQuantityTable> deleteTableSet = userCartTableSet.stream()
+                    .filter(cartProductQuantityTable -> cartProductQuantityTable.getProduct().equals(searchedProduct.get()))
+                    .collect(Collectors.toSet());
 
-//        if (productRepository.findById(id).isPresent()) {
-//
-//            Product searchedProduct = productRepository.findById(id).get();
-//
-//            loggedInUser.getProductCart().remove(searchedProduct);
-//
-//            userRepository.save(loggedInUser);
-//
-//            return new ResponseEntity<>("Product Removed From Cart", HttpStatus.OK);
-//
-//        } else {
-//
-//            throw new ProductDoesntExistException("Product Does Not Exist");
-//
-//        }
+            deleteTableSet.forEach(CartProductQuantityTable -> cartProductQuantityTableRepository.delete(CartProductQuantityTable));
+
+            return ResponseEntity.ok("Product Removed From Cart");
+
+        } else throw new ProductDoesntExistException("Product Doesn't Exist");
 
     }
 
+    @PostMapping(value = "/user/update-cart/{productId}")
+    public ResponseEntity<?> updateCart(@PathVariable(name = "productId") Long id, HttpServletRequest request) {
+
+        User loggedInUser = jwtUtilService.getLoggedInUser(request);
+
+        Cart userCart = loggedInUser.getCart();
+
+        Optional<Product> searchedProduct = productRepository.findById(id);
+
+        if (searchedProduct.isPresent()) {
+
+            Product resultProduct = searchedProduct.get();
+
+            Set<CartProductQuantityTable> userCartTableSet = userCart.getCartProductQuantityTableSet();
+
+            Optional<CartProductQuantityTable> userCartTable = userCartTableSet.stream()
+                    .filter(cartProductQuantityTable -> cartProductQuantityTable.getProduct().equals(resultProduct)
+                            && cartProductQuantityTable.getCart().equals(userCart))
+                    .findFirst();
+
+            if (userCartTable.isPresent()) {
+
+                CartProductQuantityTable resultTable = userCartTable.get();
+
+                userCartTableSet = userCartTableSet.stream()
+                        .filter(cartProductQuantityTable -> !cartProductQuantityTable.equals(resultTable))
+                        .collect(Collectors.toSet());
+
+                double prevQuantity = resultTable.getQuantity();
+
+                if (prevQuantity > 1) {
+
+                    resultTable.setQuantity(prevQuantity - 1);
+
+                    userCartTableSet.add(resultTable);
+
+                } else {
+
+                    cartProductQuantityTableRepository.delete(resultTable);
+
+                }
+
+                userCart.setCartProductQuantityTableSet(userCartTableSet);
+
+                cartRepository.save(userCart);
+
+            }
+
+            return ResponseEntity.ok("Cart Updated");
+
+        } else throw new ProductDoesntExistException("Product Doesn't Exist");
+
+    }
 
 }
